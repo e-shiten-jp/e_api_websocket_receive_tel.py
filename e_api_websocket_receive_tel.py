@@ -538,15 +538,14 @@ def func_make_websocket_url(str_p_gyou_no, str_sIssueCode, str_sSizyouC, class_l
 
 
 
-# 機能： event用のhttpアクセスを行い、プッシュされた情報を標準出力に出力する。
+# 機能： 受信データを区切り文字で分割し辞書型で返す。
 # 引数1：str_url string
-# 引数2：int_work_minutes 数値型。動作を終了する分数を指定。
 # 返値： 辞書型データ
 # 備考:
 # 受信データは、
 #       websocket: string型
 #       event: byte型
-# 
+ 
 # 仕様の解説は、API専用ページ
 # ５．マニュアル、
 # １．共通説明
@@ -583,9 +582,8 @@ def func_punctuate_message(chunk):
                 str_message = str_message + chunk[i:i+1]
 
         else:   # if chunk[i:i+1] == '\x01' or chunk[i:i+1] == '\n' :
-            str_value = str_message
+            dict_message[str_key] = str_message
             str_message = ''
-            dict_message[str_key] = str_value
     return dict_message
 
 
@@ -598,7 +596,10 @@ async def handle_connection(websocket):
     while True:
         try:
             message = await websocket.recv()
-            # print(f"受信: {message}")
+            # print(message)
+            if message == "ping":
+                print("[Ping受信] (テキストメッセージ)")
+                print(f"受信: {message}")
             dict_my_message = func_punctuate_message(message)
             print('---------------')
             for key, value in dict_my_message.items():
@@ -621,34 +622,48 @@ async def handle_connection(websocket):
 # 返値： void
 # 備考: 
 async def pong_handler(websocket):
-    while True:
-        try:
-            # pingを待ち受ける（低レベルAPIを使って）
-            frame = await websocket.ping()
-            print("サーバーからの ping を受信しました。pong を送信します。")
-            print(frame)
-            await frame  # これは送信したpingのack待ちだがここではスキップ可
-            await websocket.pong()
-        except Exception as e:
-            print(f"エラー: {e}")
-            break
+    # Pingハンドラを自分で定義
+    async def my_ping_handler(data: bytes):
+        print(f"[Ping受信] data={data}")
+        await websocket.pong(data)
+        print("[Pong送信]")
+
+    # handlerを差し替え
+    websocket.ping_handler = my_ping_handler
 
 
-# 機能： websocket.pong() を明示的に呼び出して、サーバーからの ping に応答しています。
-# 引数1：websocket接続url
+
+# 機能： websocketで、プッシュされた情報を標準出力に出力する。
+# 引数1：str_url string
 # 返値： void
-# 備考：
-#       ping_interval=None にすることで、
-#       ライブラリによる自動 ping/pong の送受信を無効にし、自分で管理する。
-async def proc_event_websocket (pi_url):
+# 備考:
+# 受信データは、
+#       websocket: string型
+#       event: byte型
+# 
+# 仕様の解説は、API専用ページ
+# ５．マニュアル、
+# １．共通説明
+# （５）注文約定通知（仮想ＵＲＬ（EVENT））
+# 別紙「立花証券・ｅ支店・ＡＰＩ、EVENT I/F 利用方法、データ仕様」参照。
+# (api_event_if.xlsx)
+# 3. 通知データ仕様 p4/26
+# 通知データは「^A」「^B」「^C」を区切り子とし文字列の羅列で送信する。
+# 通知データ中の値として「^A^B^C」は使わない。
+# 項目A1=値B1;項目A2=値B21,B22,B23;・・・を送信する場合、
+# 項目A1^B値B1^A項目A2^B値B21^CB22^CB23^A・・・と送信する。
+# ※区切り子「^A」は1項目値、「^B」は項目と値、「^C」は値と値の各区切り。
+#
+# 「型_行番号_情報コード」で、情報コードで示す値を設定する。
+# 例、b'p_1_DPP^B3757' の場合、「p_1_DPP」は、p:プレーン文字列_1:行番号_DPP:現在値
+async def proc_event_websocket(pi_url):
     async with websockets.connect(pi_url, ping_interval=None) as websocket:
         print("接続しました。")
+        await pong_handler(websocket)
 
-        # 2つのタスクを並行実行
         await asyncio.gather(
-            # handle_connection(pi_url),
-            handle_connection(websocket),
-            pong_handler(websocket)
+            handle_connection(websocket),   
+            # pong_handler(websocket)         
         )
 
 
