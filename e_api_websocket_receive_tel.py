@@ -569,7 +569,6 @@ def func_punctuate_message(chunk):
     flg_end = False         # p_dateが指定時間を超えたら、Trueに設定し終了する。
     
     for i in range(len(chunk)):
-        # 項目区切り'^A'と改行が来た場合
         if chunk[i:i+1] != '\x01' and chunk[i:i+1] != '\n' :
             # 項目と値の区切り'^B'が来た場合、':'に置き換え（置き換え文字は任意）。
             if chunk[i:i+1] == '\x02' :
@@ -581,6 +580,7 @@ def func_punctuate_message(chunk):
             else :                        
                 str_message = str_message + chunk[i:i+1]
 
+        # 項目区切り'^A'と改行が来た場合
         else:   # if chunk[i:i+1] == '\x01' or chunk[i:i+1] == '\n' :
             dict_message[str_key] = str_message
             str_message = ''
