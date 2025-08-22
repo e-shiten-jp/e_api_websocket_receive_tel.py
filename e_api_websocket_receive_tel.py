@@ -530,8 +530,7 @@ def func_make_websocket_url(str_p_gyou_no, str_sIssueCode, str_sSizyouC, class_l
     str_url = str_url + '&' + 'p_eno=0'		# 配信開始したいイベント通知番号(ユニーク番号)、指定番号の次から送信する(0なら全て)。
     str_url = str_url + '&' + 'p_evt_cmd=ST,KP,FD'
     str_url = str_url + '&' + 'p_issue_code=' + str_sIssueCode  # 銘柄コード
-    # str_url = str_url + 'p_evt_cmd=ST,KP,EC,SS,US,FD'
-
+    
     print('送信文字列＝')
     print(str_url)
     return str_url
