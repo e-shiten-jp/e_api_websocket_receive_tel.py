@@ -6,6 +6,7 @@
 # 2021.07.08,   yo.
 # 2023.04.11 reviced,   yo.
 # 2025.08.16 reviced,   yo.
+# 2026.02.18 reviced,   yo.
 #
 # 立花証券ｅ支店ＡＰＩ利用のサンプルコード
 #
@@ -42,6 +43,12 @@
 ##my_sSizyouC = '00,00,00'      # 3.市場。  00:東証   現在(2021/07/01)、東証のみ可能。
 #
 #
+# 利用方法: 
+# 事前に「e_api_login_tel.py」を実行して、
+# 仮想URL（1日券）等を取得しておいてください。
+# 「e_api_login_tel.py」と同じディレクトリで実行してください。
+# 停止は、ctrl+Cを押してください。
+#
 #
 # 参考資料（必ず最新の資料を参照してください。）--------------------------
 # マニュアル
@@ -52,13 +59,7 @@
 # 別紙「立花証券・ｅ支店・ＡＰＩ、EVENT I/F 利用方法、データ仕様」参照。
 # (api_event_if.xlsx)
 #
-#
-#
-#
-# 利用方法: 
-# 事前に「e_api_login_tel.py」を実行して、
-# 仮想URL（1日券）等を取得しておいてください。
-# 「e_api_login_tel.py」と同じディレクトリで実行してください。
+# 
 #
 # == ご注意: ========================================
 #   本番環境にに接続した場合、実際に市場に注文が出ます。
@@ -529,8 +530,9 @@ def func_make_websocket_url(str_p_gyou_no, str_sIssueCode, str_sSizyouC, class_l
     str_url = str_url + '&' + 'p_mkt_code=' + str_sSizyouC      # 市場
     str_url = str_url + '&' + 'p_eno=0'		# 配信開始したいイベント通知番号(ユニーク番号)、指定番号の次から送信する(0なら全て)。
     str_url = str_url + '&' + 'p_evt_cmd=ST,KP,FD'
+    # str_url = str_url + 'p_evt_cmd=ST,KP,EC,SS,US,FD'
     str_url = str_url + '&' + 'p_issue_code=' + str_sIssueCode  # 銘柄コード
-    
+
     print('送信文字列＝')
     print(str_url)
     return str_url
@@ -559,7 +561,7 @@ def func_make_websocket_url(str_p_gyou_no, str_sIssueCode, str_sSizyouC, class_l
 # ※区切り子「^A」は1項目値、「^B」は項目と値、「^C」は値と値の各区切り。
 #
 # 「型_行番号_情報コード」で、情報コードで示す値を設定する。
-# 例、b'p_1_DPP^B3757' の場合、「p_1_DPP」は、p:プレーン文字列_1:行番号_DPP:現在値
+# 例、b'p_1_DPP^B3757' の場合、「p_1_DPP」は、p:プレーン文字列、_1:行番号、_DPP:現在値
 #
 def func_punctuate_message(chunk):
     dict_message = {}
@@ -567,22 +569,39 @@ def func_punctuate_message(chunk):
     flg_p_date = False      # 取得した情報がp_dateの場合、Trueに設定し時刻を取得する。
     flg_end = False         # p_dateが指定時間を超えたら、Trueに設定し終了する。
     
+    chunk_ctrl = ""         # 元電文で制御コードとなっている区切子^A,^B,^Cを文字列"^A","^B","^C"に置き換えた電文を格納する。
+    
     for i in range(len(chunk)):
         if chunk[i:i+1] != '\x01' and chunk[i:i+1] != '\n' :
-            # 項目と値の区切り'^B'が来た場合、':'に置き換え（置き換え文字は任意）。
+            # 項目と値の区切り'^B'が来た場合、辞書型のkeyに格納する。
             if chunk[i:i+1] == '\x02' :
                 str_key = str_message
-                str_message = ''                                
+                str_message = ''
+                chunk_ctrl = chunk_ctrl + '^B'
             # 値区切り文字'^C'が来た場合、','に置き換え（置き換え文字は任意）。
             elif chunk[i:i+1] == '\x03' :
                 str_message = str_message + ','
+                chunk_ctrl = chunk_ctrl + '^C'
             else :                        
                 str_message = str_message + chunk[i:i+1]
+                chunk_ctrl = chunk_ctrl + chunk[i:i+1]
 
         # 項目区切り'^A'と改行が来た場合
         else:   # if chunk[i:i+1] == '\x01' or chunk[i:i+1] == '\n' :
             dict_message[str_key] = str_message
             str_message = ''
+            if chunk[i:i+1] == '\x01' :
+                chunk_ctrl = chunk_ctrl + '^A'
+            if chunk[i:i+1] == '\n' :
+                chunk_ctrl = chunk_ctrl + '\n'
+
+    print()
+    print("受信電文　区切子^A^B^Cは非表示：")
+    print(chunk)
+    print()
+    print('区切子^A^B^Cを文字列"^A","^B","^C"に置換：')
+    print(chunk_ctrl)
+    print()
     return dict_message
 
 
@@ -595,12 +614,15 @@ async def handle_connection(websocket):
     while True:
         try:
             message = await websocket.recv()
+            # print('--- message = await websocket.recv() ---')
             # print(message)
             if message == "ping":
                 print("[Ping受信] (テキストメッセージ)")
                 print(f"受信: {message}")
-            dict_my_message = func_punctuate_message(message)
+            print()
             print('---------------')
+            dict_my_message = func_punctuate_message(message)
+
             for key, value in dict_my_message.items():
                 print(key, ': ', value)
                 if key == 'p_errno' and value == '2' :
@@ -673,17 +695,18 @@ if __name__ == "__main__":
     # 仕様では120銘柄まで指定できますが、負荷が高くなるため、サンプルコードでは1銘柄のみを指定。
 
     # 1銘柄で取得の場合のサンプル
-    my_p_gyou_no = '1'        # 行を指定する。string型。1-120の整数で、銘柄毎に違う行を指定する。時価取得時の銘柄の識別番号。
-    my_sIssueCode = '8697'  # 2.銘柄コード。string型。通常銘柄、4桁。優先株等、5桁。例、伊藤園'2593'、伊藤園優先株'25935'
-    my_sSizyouC = '00'      # 3.市場。string型。  00:東証   現在(2021/07/01)、東証のみ可能。
-    # 2銘柄で取得の場合のサンプル
-    ##my_p_gyou_no = '1,2'        # 行を指定する。string型。1-120の整数で、銘柄毎に違う行を指定する。時価取得時の銘柄の識別番号。
-    ##my_sIssueCode = '1301,1332'  # 2.銘柄コード。通常銘柄、4桁。優先株等、5桁。例、伊藤園'2593'、伊藤園優先株'25935'
-    ##my_sSizyouC = '00,00'      # 3.市場。  00:東証   現在(2021/07/01)、東証のみ可能。
+    # my_p_gyou_no = '1'        # 行を指定する。string型。1-120の整数で、銘柄毎に違う行を指定する。時価取得時の銘柄の識別番号。
+    # my_sIssueCode = '9432'  # 2.銘柄コード。string型。通常銘柄、4桁。優先株等、5桁。例、伊藤園'2593'、伊藤園優先株'25935'
+    # my_sSizyouC = '00'      # 3.市場。string型。  00:東証   現在(2021/07/01)、東証のみ可能。
+    
+    # 2銘柄で取得の場合のサンプル（行1:銘柄6501,市場00   行2=銘柄9432,市場00  を指定するサンプル）
+    my_p_gyou_no = '1,2'        # 行を指定する。string型。1-120の整数で、銘柄毎に違う行を指定する。時価取得時の銘柄の識別番号。
+    my_sIssueCode = '6501,9432'  # 2.銘柄コード。通常銘柄、4桁。優先株等、5桁。例、伊藤園'2593'、伊藤園優先株'25935'
+    my_sSizyouC = '00,00'      # 3.市場。  00:東証   現在(2021/07/01)、東証のみ可能。
 
-    # 3銘柄で取得の場合のサンプル
+    # 3銘柄で取得の場合のサンプル（行1:銘柄6501,市場00   行2=銘柄9432,市場00   行3=銘柄9101,市場00  を指定するサンプル）
     ##my_p_gyou_no = '1,2,3'        # 行を指定する。string型。1-120の整数で、銘柄毎に違う行を指定する。時価取得時の銘柄の識別番号。
-    ##my_sIssueCode = '1301,1332,1333'  # 2.銘柄コード。通常銘柄、4桁。優先株等、5桁。例、伊藤園'2593'、伊藤園優先株'25935'
+    ##my_sIssueCode = '6501,9432,9101'  # 2.銘柄コード。通常銘柄、4桁。優先株等、5桁。例、伊藤園'2593'、伊藤園優先株'25935'
     ##my_sSizyouC = '00,00,00'      # 3.市場。  00:東証   現在(2021/07/01)、東証のみ可能。
 
     # --- 以上設定項目 -------------------------------------------------------------------------
