@@ -593,13 +593,13 @@ def func_punctuate_message(chunk):
             if chunk[i:i+1] == '\x01' :
                 chunk_ctrl = chunk_ctrl + '^A'
             if chunk[i:i+1] == '\n' :
-                chunk_ctrl = chunk_ctrl + '\n'
+                chunk_ctrl = chunk_ctrl + '\\n'
 
     print()
     print("受信電文　区切子^A^B^Cは非表示：")
     print(chunk)
     print()
-    print('区切子^A^B^Cを文字列"^A","^B","^C"に置換：')
+    print("区切子^A^B^Cを文字列'^A','^B','^C'に置換。改行\\nを文字列'\\n'に置換。：")
     print(chunk_ctrl)
     print()
     return dict_message
@@ -610,6 +610,8 @@ def func_punctuate_message(chunk):
 # 返値： void
 async def handle_connection(websocket):
     dict_my_message = {}
+    str_message_accum = ''
+
     # WebSocket接続のreader/writer取得
     while True:
         try:
@@ -619,10 +621,15 @@ async def handle_connection(websocket):
             if message == "ping":
                 print("[Ping受信] (テキストメッセージ)")
                 print(f"受信: {message}")
+
+            
             print()
             print('---------------')
-            dict_my_message = func_punctuate_message(message)
-
+            str_message_accum = str_message_accum + message
+            if str_message_accum[-1:] ==  '\x01' :
+                dict_my_message = func_punctuate_message(str_message_accum)
+                str_message_accum = ''
+ 
             for key, value in dict_my_message.items():
                 print(key, ': ', value)
                 if key == 'p_errno' and value == '2' :
