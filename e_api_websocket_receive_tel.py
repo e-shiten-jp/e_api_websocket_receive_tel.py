@@ -630,16 +630,16 @@ async def handle_connection(websocket):
                 dict_my_message = func_punctuate_message(str_message_accum)
                 str_message_accum = ''
  
-            for key, value in dict_my_message.items():
-                print(key, ': ', value)
-                if key == 'p_errno' and value == '2' :
-                    print()
+                for key, value in dict_my_message.items():
                     print(key, ': ', value)
-                    print("仮想URLが有効ではありません。")
-                    print("電話認証 + e_api_login_tel.py実行")
-                    print("を再度行い、新しく仮想URL（1日券）を取得してください。")
-                    print()
-                    #break
+                    if key == 'p_errno' and value == '2' :
+                        print()
+                        print(key, ': ', value)
+                        print("仮想URLが有効ではありません。")
+                        print("電話認証 + e_api_login_tel.py実行")
+                        print("を再度行い、新しく仮想URL（1日券）を取得してください。")
+                        print()
+                        #break
         except websockets.exceptions.ConnectionClosed:
             print("接続が閉じられました。")
             break
